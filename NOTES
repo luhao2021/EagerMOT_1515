@@ -1,0 +1,340 @@
+1. According to the comments in below function in file inputs/detections_2d.py:
+
+def parse_motsfusion_seg(seg_json):
+    """ 
+    Returns class, score, mask, bbox and reid parsed from input 
+
+    If throws error, need to run methods in adapt_input.py to adapt MOTSFusion segmentations - 
+    to have a class field taken from the corresponding TrackRCNN files, see functions below:
+    * add_detection_info_to_motsfusion_trackrcnn_segmentations()
+    * add_detection_info_to_motsfusion_rrc_segmentations()
+    """
+    mask = {'size': seg_json['size'],
+            'counts': seg_json['counts'].strip().encode(encoding='UTF-8')}
+    #print(seg_json.keys())
+    return (int(seg_json['class']), float(seg_json['score']),
+            mask, seg_json['box_det'], None)  # No ReID for MOTSFusion
+ 
+The default segmentation json file doesn't have the required key, need to run below two function to adapt the kitti dataset to current interface:
+    * add_detection_info_to_motsfusion_trackrcnn_segmentations()
+    * add_detection_info_to_motsfusion_rrc_segmentations()
+
+These two functions can simply be called by runing:
+    python adapt_kitti_motsfusion_input.py 
+
+2. Modifications in file "adapt_kitti_motsfusion_input.py":
+    1> add two import lines:
+            import dataset_classes.kitti.mot_kitti as mot_kitti
+            import inputs.utils as input_utils
+    2> The trackrcnn dataset has some issues, the downloaded dataset doesn't include the complete samples. Currently I download the files from:
+            https://github.com/tobiasfshr/MOTSFusion
+       The trackrcnn training detections are from:
+            https://drive.google.com/file/d/1Rb63G4j6lap2Zk4zKOlYX_YJozAdduPD/view
+       But you can see that from the folder "segmentation_trackrcnn_ourseg", there are only samples: 0002, 0006, 0007, 0008, 0010, 0013, 0014, 0016, 0018. Therefore, for a quick trial of this source code repo, I use RRC instead of trackrcnn. 
+
+       According to the source code git repo, the best performance on KITTI can be achieved by using 3D PointGNN + (2D MOTSFusion+RRC), and the default adaptation use "input_utils.TRACKING_BEST", which should be the RRC dataset, but in below source code in file "inputs/loading":
+
+                                              
+def load_detections_2d_kitti(dets_2d_source: str, seq_name: str):
+    if dets_2d_source == utils.TRACKRCNN:
+        return load_segmentations_trackrcnn(seq_name)
+    elif dets_2d_source == utils.MOTSFUSION_RRC:
+        return load_segmentations_motsfusion_rrc(seq_name)
+    elif dets_2d_source == utils.MOTSFUSION_TRACKRCNN:
+        return load_segmentations_motsfusion_trackrcnn(seq_name)
+    elif dets_2d_source == utils.MOTSFUSION_BEST:
+        return load_segmentations_motsfusion_best(seq_name)
+    elif dets_2d_source == utils.TRACKING_BEST:
+        return load_segmentations_tracking_best(seq_name)
+    raise NotImplementedError
+
+
+def load_segmentations_tracking_best(target_seq_name, classes_to_load=None):
+    """ Load 2D detections for "car" given by MOTSFusion and for "ped" given by TrackRCNN """
+    classes, scores, masks, boxes, reids = ([] for _ in range(5))
+    detections_2d._load_segmentations_motsfusion(utils.seg_motsfusion_rrc_dir(target_seq_name), target_seq_name,
+                                                 classes, scores, masks, boxes, reids, [detections_2d.CAR_CLASS])
+    detections_2d._load_segmentations_trackrcnn(
+        target_seq_name, classes, scores, masks, boxes, reids, [detections_2d.PED_CLASS])
+    return utils.convert_nested_lists_to_numpy(classes, scores, masks, boxes, reids)
+
+    We can see that the function "load_segmentations_tracking_best" use different interface and call _load_segmentations_motsfusion on RRC, and call _load_segmentations_trackrcnn, which is confusing. I don't have too much time to check the exact reason. Currently, I simply use the utils.MOTSFUSION_RRC instead of utils.TRACKING_BEST. Besides, I comments the adaptation to trackrcnn due to the incomplete trackrcnn dataset. See below:
+
+    add_detection_info_to_motsfusion_rrc_segmentations()
+    #add_detection_info_to_motsfusion_trackrcnn_segmentations()
+
+3> This is to change the parameter to function "#add_detection_info_to_motsfusion_rrc_segmentations", as the default is adapt sequence 0-28, which is for testing dataset, I change it to 0-20 for training set.
+
+4> After doing these, run "python run_tracking.py" directly.
+   There may occur an error related to scipy package, some function/variable of Rotation package is not found, this is because the version of scipy is not compatible. According to the requirement_pip.txt, scipy shoule be 1.2.0, but this creates another incimpatibility, upgrade to 1.3.2 fix this issue.
+
+5> I attached the runtime log as below:
+(aer1515_eagermot) hao@hao-XPS-17-9710:~/Workspace/AER1515/Project/EagerMOT$ python run_tracking.py 
+Starting sequence: 0000
+Processing frame 000000
+/home/hao/Workspace/AER1515/Project/EagerMOT/transform/transformation.py:36: NumbaPerformanceWarning: '@' is faster on contiguous arrays, called on (array(float64, 2d, C), array(float64, 1d, A))
+  inverse[0:3, 3] = (-transform[0:3, 0:3].T) @ transform[0:3, 3]
+/home/hao/Workspace/pyvenv/aer1515_eagermot/lib/python3.8/site-packages/numba/core/typing/npydecl.py:913: NumbaPerformanceWarning: '@' is faster on contiguous arrays, called on (array(float64, 2d, C), array(float64, 1d, A))
+  warnings.warn(NumbaPerformanceWarning(msg))
+Processing frame 000100
+Sequence 0000 took 2.37 sec, 0.04 min
+Matching took 1.27 sec, 53.36%
+Creating took 0.00 sec, 0.10%
+Fusion   took 1.27 sec, 53.46%
+Tracking took 1.02 sec, 43.07%
+672 1st stage and 53 2nd stage matches
+Starting sequence: 0001
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Processing frame 000400
+Sequence 0001 took 1.60 sec, 0.03 min
+Matching took 0.33 sec, 20.85%
+Creating took 0.01 sec, 0.44%
+Fusion   took 0.34 sec, 21.29%
+Tracking took 1.06 sec, 66.32%
+2830 1st stage and 281 2nd stage matches
+Starting sequence: 0002
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Sequence 0002 took 0.51 sec, 0.01 min
+Matching took 0.10 sec, 18.84%
+Creating took 0.00 sec, 0.58%
+Fusion   took 0.10 sec, 19.42%
+Tracking took 0.31 sec, 61.26%
+763 1st stage and 79 2nd stage matches
+Starting sequence: 0003
+Processing frame 000000
+Processing frame 000100
+Sequence 0003 took 0.25 sec, 0.00 min
+Matching took 0.05 sec, 19.08%
+Creating took 0.00 sec, 0.56%
+Fusion   took 0.05 sec, 19.64%
+Tracking took 0.14 sec, 56.17%
+367 1st stage and 22 2nd stage matches
+Starting sequence: 0004
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0004 took 0.61 sec, 0.01 min
+Matching took 0.12 sec, 19.58%
+Creating took 0.00 sec, 0.54%
+Fusion   took 0.12 sec, 20.12%
+Tracking took 0.36 sec, 59.75%
+910 1st stage and 59 2nd stage matches
+Starting sequence: 0005
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Sequence 0005 took 0.69 sec, 0.01 min
+Matching took 0.14 sec, 19.72%
+Creating took 0.00 sec, 0.54%
+Fusion   took 0.14 sec, 20.26%
+Tracking took 0.42 sec, 61.92%
+1106 1st stage and 126 2nd stage matches
+Starting sequence: 0006
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Sequence 0006 took 0.41 sec, 0.01 min
+Matching took 0.08 sec, 19.24%
+Creating took 0.00 sec, 0.55%
+Fusion   took 0.08 sec, 19.79%
+Tracking took 0.23 sec, 55.66%
+644 1st stage and 19 2nd stage matches
+Starting sequence: 0007
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Processing frame 000400
+Processing frame 000500
+Processing frame 000600
+Processing frame 000700
+Sequence 0007 took 1.57 sec, 0.03 min
+Matching took 0.33 sec, 20.90%
+Creating took 0.01 sec, 0.51%
+Fusion   took 0.34 sec, 21.41%
+Tracking took 0.94 sec, 59.75%
+2427 1st stage and 285 2nd stage matches
+Starting sequence: 0008
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0008 took 0.65 sec, 0.01 min
+Matching took 0.13 sec, 20.10%
+Creating took 0.00 sec, 0.57%
+Fusion   took 0.13 sec, 20.67%
+Tracking took 0.37 sec, 56.57%
+950 1st stage and 93 2nd stage matches
+Starting sequence: 0009
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Processing frame 000400
+Processing frame 000500
+Processing frame 000600
+Processing frame 000700
+Processing frame 000800
+Sequence 0009 took 1.84 sec, 0.03 min
+Matching took 0.33 sec, 17.79%
+Creating took 0.01 sec, 0.43%
+Fusion   took 0.33 sec, 18.22%
+Tracking took 1.20 sec, 65.39%
+3035 1st stage and 298 2nd stage matches
+Starting sequence: 0010
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Sequence 0010 took 0.44 sec, 0.01 min
+Matching took 0.09 sec, 19.41%
+Creating took 0.00 sec, 0.56%
+Fusion   took 0.09 sec, 19.96%
+Tracking took 0.24 sec, 54.54%
+573 1st stage and 29 2nd stage matches
+Starting sequence: 0011
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0011 took 1.57 sec, 0.03 min
+Matching took 0.30 sec, 19.15%
+Creating took 0.01 sec, 0.45%
+Fusion   took 0.31 sec, 19.59%
+Tracking took 1.08 sec, 68.81%
+2889 1st stage and 273 2nd stage matches
+Starting sequence: 0012
+Processing frame 000000
+Sequence 0012 took 0.16 sec, 0.00 min
+Matching took 0.03 sec, 18.33%
+Creating took 0.00 sec, 0.51%
+Fusion   took 0.03 sec, 18.84%
+Tracking took 0.09 sec, 54.63%
+233 1st stage and 10 2nd stage matches
+Starting sequence: 0013
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0013 took 1.02 sec, 0.02 min
+Matching took 0.19 sec, 18.40%
+Creating took 0.00 sec, 0.43%
+Fusion   took 0.19 sec, 18.83%
+Tracking took 0.67 sec, 65.74%
+1537 1st stage and 1 2nd stage matches
+Starting sequence: 0014
+Processing frame 000000
+Processing frame 000100
+Sequence 0014 took 0.30 sec, 0.01 min
+Matching took 0.06 sec, 18.95%
+Creating took 0.00 sec, 0.51%
+Fusion   took 0.06 sec, 19.45%
+Tracking took 0.19 sec, 62.20%
+552 1st stage and 39 2nd stage matches
+Starting sequence: 0015
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0015 took 0.93 sec, 0.02 min
+Matching took 0.18 sec, 19.49%
+Creating took 0.01 sec, 0.58%
+Fusion   took 0.19 sec, 20.07%
+Tracking took 0.58 sec, 62.34%
+1282 1st stage and 326 2nd stage matches
+Starting sequence: 0016
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Sequence 0016 took 1.17 sec, 0.02 min
+Matching took 0.21 sec, 18.13%
+Creating took 0.01 sec, 0.45%
+Fusion   took 0.22 sec, 18.58%
+Tracking took 0.82 sec, 70.22%
+2803 1st stage and 9 2nd stage matches
+Starting sequence: 0017
+Processing frame 000000
+Processing frame 000100
+Sequence 0017 took 0.62 sec, 0.01 min
+Matching took 0.08 sec, 12.66%
+Creating took 0.00 sec, 0.38%
+Fusion   took 0.08 sec, 13.04%
+Tracking took 0.45 sec, 72.16%
+1222 1st stage and 0 2nd stage matches
+Starting sequence: 0018
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Sequence 0018 took 0.89 sec, 0.01 min
+Matching took 0.17 sec, 19.43%
+Creating took 0.00 sec, 0.51%
+Fusion   took 0.18 sec, 19.93%
+Tracking took 0.56 sec, 63.17%
+1592 1st stage and 69 2nd stage matches
+Starting sequence: 0019
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Processing frame 000400
+Processing frame 000500
+Processing frame 000600
+Processing frame 000700
+Processing frame 000800
+Processing frame 000900
+Processing frame 001000
+Sequence 0019 took 4.53 sec, 0.08 min
+Matching took 0.70 sec, 15.37%
+Creating took 0.02 sec, 0.41%
+Fusion   took 0.72 sec, 15.78%
+Tracking took 3.28 sec, 72.25%
+8971 1st stage and 75 2nd stage matches
+Starting sequence: 0020
+Processing frame 000000
+Processing frame 000100
+Processing frame 000200
+Processing frame 000300
+Processing frame 000400
+Processing frame 000500
+Processing frame 000600
+Processing frame 000700
+Processing frame 000800
+Sequence 0020 took 3.03 sec, 0.05 min
+Matching took 0.61 sec, 20.27%
+Creating took 0.01 sec, 0.47%
+Fusion   took 0.63 sec, 20.74%
+Tracking took 2.00 sec, 66.04%
+5521 1st stage and 366 2nd stage matches
+
+
+Fusion     5.59 sec, 92.30%
+Tracking   16.00 sec, 264.47%
+Reporting  0.28 sec, 4.54%
+Tracking-fusion framerate: 370.91 fps
+Tracking-only framerate: 500.35 fps
+Total framerate: 1323.29 fps
+
+Total instances 3D and 2D: 4579 -> 70.74%
+Total instances 3D only  : 1316 -> 20.33%
+Total instances 2D only  : 578 -> 8.93%
+
+matched_tracks_first_total 5521
+unmatched_tracks_first_total 1520
+matched_tracks_second_total 366
+unmatched_tracks_second_total 1154
+unmatched_dets2d_second_total 212
+percentage of all tracks matched in 1st stage 181.61%
+percentage of leftover tracks matched in 2nd stage 24.08%
+percentage dets 2D matched in 2nd stage 63.32%
+percentage tracks unmatched after both stages 16.39%
+
+3D MOT saved in /home/hao/Workspace/AER1515/Project/EagerMOT/workspace/kitti/training/pointgnn_t3_motsfusion_rrc/tracking_det_0_0_seg_0.0_0.9_bbox_0.01_0.01_kf_dist_2d_full_[-3.5_-0.3]_0.3_a3_3_h1_2_2d_age_3_3_cleaning_0_3d/
+
+Variant det_0_0_seg_0.0_0.9_bbox_0.01_0.01_kf_dist_2d_full_[-3.5_-0.3]_0.3_a3_3_h1_2_2d_age_3_3 took 0.42 mins
+

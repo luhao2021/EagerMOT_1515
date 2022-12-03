@@ -37,8 +37,11 @@ def _load_detections_ab3dmot(target_seq_name):
 
 def _load_detections_pointgnn(target_seq_dirs):
     detections_per_frame = []
+    #print("target seq dirs:", target_seq_dirs)
     for class_dir in target_seq_dirs:
+        #print("class_dir:", class_dir)
         for file_name in sorted(os.listdir(class_dir)):
+            #print("file name:", file_name)
             frame_int = int(file_name.split('.')[0])
             utils.pad_lists_if_necessary(frame_int, [detections_per_frame])
 
@@ -141,6 +144,7 @@ def load_annotations_kitti(seq_name: str) -> Dict[str, List[Bbox3d]]:
                          track_id, confidence=1.0, obs_angle=occlusion, seg_class_id=class_id,
                          bbox_2d_in_cam=bbox_2d_in_cam)
         all_frames_to_bboxes[str(frame_int).zfill(6)].append(bbox_3d)
+        print(seq_name, frame_int)
 
     return all_frames_to_bboxes
 

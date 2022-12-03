@@ -73,6 +73,7 @@ def parse_motsfusion_seg(seg_json):
     """
     mask = {'size': seg_json['size'],
             'counts': seg_json['counts'].strip().encode(encoding='UTF-8')}
+    #print(seg_json.keys())
     return (int(seg_json['class']), float(seg_json['score']),
             mask, seg_json['box_det'], None)  # No ReID for MOTSFusion
 

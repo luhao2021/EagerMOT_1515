@@ -160,7 +160,7 @@ def run_on_kitti():
     # change det_source to input_utils.AB3DMOT and run on the VAL set
     mot_dataset = mot_kitti.MOTDatasetKITTI(work_dir=KITTI_WORK_DIR,
                                             det_source=input_utils.POINTGNN_T3,
-                                            seg_source=input_utils.TRACKING_BEST)
+                                            seg_source=input_utils.MOTSFUSION_RRC)
 
     # if want to run on specific sequences only, add their str names here
     target_sequences: List[str] = []

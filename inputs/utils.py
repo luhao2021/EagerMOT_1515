@@ -26,14 +26,14 @@ TRACKING_BEST = 'rrc_trackrcnn'
 MMDETECTION_CASCADE_NUIMAGES = 'mmdetection_cascade_nuimages'
 
 # Edit paths to point to where you store 3D and 2D detections / segmentations on your machine
-POINTGNN_DETS_DIR = MOUNT_PATH + "/storage/pointgnn/" + SPLIT
-DETECTIONS_AB3DMOT = MOUNT_PATH + "/storage/ab3dmot/" + SPLIT
+POINTGNN_DETS_DIR = MOUNT_PATH + "/home/hao/Workspace/AER1515/Project/EagerMOT/data/pointgnn/" + SPLIT
+DETECTIONS_AB3DMOT = MOUNT_PATH + "/home/hao/Workspace/AER1515/Project/EagerMOT/data/ab3dmot/" + SPLIT
 DETECTIONS_EFFICIENT_DET_NUSCENES = MOUNT_PATH + "/storage/efficientdet/" + SPLIT
 DETECTIONS_CENTER_POINT_NUSCENES = MOUNT_PATH + "/storage/centerpoint/" + SPLIT
 
-SEGMENTATIONS_TRACKRCNN_DIR = MOUNT_PATH + "/storage/trackrcnn/" + SPLIT
-MOTSFUSION_RRC_DIR = MOUNT_PATH + "/storage/detections_segmentations_RRC_BB2SegNet/" + SPLIT
-MOTSFUSION_TRACKRCNN_DIR = MOUNT_PATH + "/storage/detections_segmentations_trackrcnn_BB2SegNet/" + SPLIT
+SEGMENTATIONS_TRACKRCNN_DIR = MOUNT_PATH + "/home/hao/Workspace/AER1515/Project/EagerMOT/data/trackrcnn/" + SPLIT
+MOTSFUSION_RRC_DIR = MOUNT_PATH + "/home/hao/Workspace/AER1515/Project/EagerMOT/data/detections_segmentations_RRC_BB2SegNet/" + SPLIT
+MOTSFUSION_TRACKRCNN_DIR = MOUNT_PATH + "/home/hao/Workspace/AER1515/Project/EagerMOT/data/detections_segmentations_trackrcnn_BB2SegNet/" + SPLIT
 DETECTIONS_MMDETECTION_CASCADE_NUIMAGES_NUSCENES = MOUNT_PATH + \
     "/storage/mmdetection_cascade_x101/" + SPLIT
 DETECTIONS_MMDETECTION_CASCADE_NUIMAGES_KITTI = MOUNT_PATH + \
